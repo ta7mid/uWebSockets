@@ -30,16 +30,17 @@ elseif(ENABLE_ZLIB)
   string(APPEND find_dependency_calls "find_dependency(ZLIB REQUIRED)\n")
 endif()
 
+include(GNUInstallDirs)
+set(CMAKE_INSTALL_DOCDIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${PROJECT_NAME}")
+
 #----------------------------------------------------------------
 # Targets and properties
 #----------------------------------------------------------------
 
-include(GNUInstallDirs)
-
 add_library(uWebSockets_uWebSockets INTERFACE)
 target_compile_features(uWebSockets_uWebSockets INTERFACE cxx_std_17)
 
-set(headers_install_dir "${CMAKE_INSTALL_INCLUDEDIR}/uwebsockets")
+set(headers_install_dir "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
 target_include_directories(uWebSockets_uWebSockets
   INTERFACE
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
@@ -96,7 +97,7 @@ if("LIBUS_USE_QUIC" IN_LIST usockets_cpp_defs)
   )
 endif()
 
-foreach(header ${headers})
+foreach(header IN LISTS headers)
   get_filename_component(name "${header}" NAME)
   target_sources(uWebSockets_uWebSockets
     INTERFACE
@@ -105,10 +106,9 @@ foreach(header ${headers})
   )
 endforeach()
 
-set(exported_name "${PROJECT_NAME}")
 set_target_properties(uWebSockets_uWebSockets
   PROPERTIES
-    EXPORT_NAME "${exported_name}"
+    EXPORT_NAME "${PROJECT_NAME}"
     PUBLIC_HEADER "${headers}"
 )
 
@@ -134,19 +134,26 @@ install(TARGETS uWebSockets_uWebSockets
   PUBLIC_HEADER DESTINATION "${headers_install_dir}"
 )
 
-set(config_dest "${CMAKE_INSTALL_LIBDIR}/cmake/${exported_name}")
+set(config_dest "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
 install(EXPORT exported_targets
   DESTINATION "${config_dest}"
-  NAMESPACE "${exported_name}::"
-  FILE "${exported_name}Targets.cmake"
+  NAMESPACE   "${PROJECT_NAME}::"
+  FILE        "${PROJECT_NAME}Targets.cmake"
 )
 
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${exported_name}Config.cmake"
-"include(CMakeFindDependencyMacro)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+  "include(CMakeFindDependencyMacro)
 ${find_dependency_calls}
-include(\"\${CMAKE_CURRENT_LIST_DIR}/${exported_name}Targets.cmake\")
-")
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${exported_name}Config.cmake"
+include(\"\${CMAKE_CURRENT_LIST_DIR}/${PROJECT_NAME}Targets.cmake\")"
+)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
   DESTINATION "${config_dest}"
+)
+
+install(FILES "README.md" "misc/READMORE.md"
+  TYPE DOC
+)
+install(DIRECTORY "examples"
+  TYPE DOC
 )
