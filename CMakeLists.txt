@@ -20,11 +20,14 @@ option(
 option(ENABLE_PROXY "Enable PROXY Protocol v2 support" OFF)
 
 find_package(uSockets REQUIRED)
+set(find_dependency_calls "find_dependency(uSockets REQUIRED)\n")
 
 if(ENABLE_LIBDEFLATE)
   find_package(libdeflate REQUIRED)
+  string(APPEND find_dependency_calls "find_dependency(libdeflate REQUIRED)\n")
 elseif(ENABLE_ZLIB)
   find_package(ZLIB REQUIRED)
+  string(APPEND find_dependency_calls "find_dependency(ZLIB REQUIRED)\n")
 endif()
 
 #----------------------------------------------------------------
@@ -34,8 +37,14 @@ endif()
 include(GNUInstallDirs)
 
 add_library(uWebSockets_uWebSockets INTERFACE)
-target_include_directories(uWebSockets_uWebSockets INTERFACE "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 target_compile_features(uWebSockets_uWebSockets INTERFACE cxx_std_17)
+
+set(headers_install_dir "${CMAKE_INSTALL_INCLUDEDIR}/uwebsockets")
+target_include_directories(uWebSockets_uWebSockets
+  INTERFACE
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+    "$<INSTALL_INTERFACE:${headers_install_dir}>"
+)
 
 set(headers
   "src/App.h"
@@ -87,7 +96,21 @@ if("LIBUS_USE_QUIC" IN_LIST usockets_cpp_defs)
   )
 endif()
 
-set_target_properties(uWebSockets_uWebSockets PROPERTIES PUBLIC_HEADER "${headers}")
+foreach(header ${headers})
+  get_filename_component(name "${header}" NAME)
+  target_sources(uWebSockets_uWebSockets
+    INTERFACE
+      "$<BUILD_INTERFACE:${header}>"
+      "$<INSTALL_INTERFACE:${headers_install_dir}/${name}>"
+  )
+endforeach()
+
+set(exported_name "${PROJECT_NAME}")
+set_target_properties(uWebSockets_uWebSockets
+  PROPERTIES
+    EXPORT_NAME "${exported_name}"
+    PUBLIC_HEADER "${headers}"
+)
 
 if(ENABLE_PROXY)
   target_compile_definitions(uWebSockets_uWebSockets INTERFACE "UWS_WITH_PROXY")
@@ -106,27 +129,24 @@ endif()
 # Installation
 #----------------------------------------------------------------
 
-set(exported_name "${PROJECT_NAME}")
-set(config_dest "${CMAKE_INSTALL_LIBDIR}/cmake/${exported_name}")
-
-set_target_properties(uWebSockets_uWebSockets PROPERTIES EXPORT_NAME "${exported_name}")
 install(TARGETS uWebSockets_uWebSockets
   EXPORT exported_targets
-  PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${exported_name}"
+  PUBLIC_HEADER DESTINATION "${headers_install_dir}"
 )
+
+set(config_dest "${CMAKE_INSTALL_LIBDIR}/cmake/${exported_name}")
 
 install(EXPORT exported_targets
   DESTINATION "${config_dest}"
   NAMESPACE "${exported_name}::"
-  FILE "uWebSocketsTargets.cmake"
+  FILE "${exported_name}Targets.cmake"
 )
 
-# language=CMake
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${exported_name}Config.cmake" [[
-include(CMakeFindDependencyMacro)
-find_dependency(uSockets REQUIRED)
-include("${CMAKE_CURRENT_LIST_DIR}/uWebSocketsTargets.cmake")
-]])
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${exported_name}Config.cmake"
+"include(CMakeFindDependencyMacro)
+${find_dependency_calls}
+include(\"\${CMAKE_CURRENT_LIST_DIR}/${exported_name}Targets.cmake\")
+")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${exported_name}Config.cmake"
   DESTINATION "${config_dest}"
 )
